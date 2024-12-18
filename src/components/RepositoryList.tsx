@@ -3,18 +3,119 @@
 import { useSession } from "next-auth/react";
 import { useEffect, useState, useCallback } from "react";
 import { Octokit } from "octokit";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Card, CardHeader, CardDescription, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+import { X } from "lucide-react";
+
+interface Artifact {
+  id: number;
+  name: string;
+  size_in_bytes: number;
+  created_at: string;
+  expired: boolean;
+}
+
+interface GithubArtifact {
+  id: number;
+  node_id: string;
+  name: string;
+  size_in_bytes: number;
+  url: string;
+  archive_download_url: string;
+  expired: boolean;
+  created_at: string;
+  expires_at: string | null;
+  updated_at: string;
+}
 
 interface Repository {
   id: number;
   name: string;
   full_name: string;
   artifactCount: number;
+  totalSize: number;
+  artifacts: Artifact[];
   loading: boolean;
 }
 
-interface Artifact {
-  id: number;
-  created_at: string;
+interface ModalProps {
+  repository: Repository;
+  onClose: () => void;
+  onDelete: (artifactId: number) => Promise<void>;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+}
+
+function ArtifactModal({ repository, onClose, onDelete }: ModalProps) {
+  const [deletingIds, setDeletingIds] = useState<number[]>([]);
+
+  const handleDelete = async (artifactId: number) => {
+    setDeletingIds(prev => [...prev, artifactId]);
+    try {
+      await onDelete(artifactId);
+    } catch (error) {
+      console.error('Error deleting artifact:', error);
+    }
+    setDeletingIds(prev => prev.filter(id => id !== artifactId));
+  };
+
+  return (
+    <Dialog open={true} onOpenChange={() => onClose()}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex justify-between items-center">
+            <div>
+              <h2 className="text-lg font-semibold">{repository.name} Artifacts</h2>
+              <p className="text-sm text-muted-foreground mt-1">Total size: {formatBytes(repository.totalSize)}</p>
+            </div>
+            <Button variant="ghost" size="icon" onClick={onClose}>
+              <X className="h-4 w-4" />
+            </Button>
+          </DialogTitle>
+        </DialogHeader>
+        <div className="overflow-y-auto max-h-[60vh]">
+          {repository.artifacts.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No artifacts found
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {repository.artifacts.map(artifact => (
+                <Card key={artifact.id}>
+                  <CardContent className="flex items-center justify-between p-4">
+                    <div>
+                      <h3 className="font-medium">{artifact.name}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Size: {formatBytes(artifact.size_in_bytes)} • Created: {
+                          new Date(artifact.created_at).toLocaleDateString()
+                        }
+                      </p>
+                    </div>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDelete(artifact.id)}
+                      disabled={deletingIds.includes(artifact.id)}
+                    >
+                      {deletingIds.includes(artifact.id) ? 'Deleting...' : 'Delete'}
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 export default function RepositoryList() {
@@ -23,6 +124,8 @@ export default function RepositoryList() {
   const [loading, setLoading] = useState(true);
   const [selectedRepos, setSelectedRepos] = useState<number[]>([]);
   const [deleting, setDeleting] = useState(false);
+  const [hideEmpty, setHideEmpty] = useState(false);
+  const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
 
   const fetchRepositories = useCallback(async () => {
     try {
@@ -32,30 +135,49 @@ export default function RepositoryList() {
         sort: 'updated',
       });
 
+      // Set repositories immediately with loading state
       const repos = response.data.map(repo => ({
         id: repo.id,
         name: repo.name,
         full_name: repo.full_name,
         artifactCount: 0,
+        totalSize: 0,
+        artifacts: [],
         loading: true,
       }));
-
       setRepositories(repos);
       setLoading(false);
 
-      // Fetch artifact counts for each repository
-      for (const repo of repos) {
+      // Fetch artifacts for each repository in parallel
+      const artifactPromises = repos.map(async (repo) => {
         try {
           const artifactsResponse = await octokit.rest.actions.listArtifactsForRepo({
             owner: repo.full_name.split('/')[0],
             repo: repo.name,
-            per_page: 1,
+            per_page: 100,
           });
+
+          const githubArtifacts = artifactsResponse.data.artifacts as GithubArtifact[];
+          const artifacts: Artifact[] = githubArtifacts.map(art => ({
+            id: art.id,
+            name: art.name,
+            size_in_bytes: art.size_in_bytes,
+            created_at: art.created_at,
+            expired: art.expired,
+          }));
+
+          const totalSize = artifacts.reduce((sum, artifact) => sum + artifact.size_in_bytes, 0);
 
           setRepositories(prevRepos =>
             prevRepos.map(r =>
               r.id === repo.id
-                ? { ...r, artifactCount: artifactsResponse.data.total_count, loading: false }
+                ? {
+                    ...r,
+                    artifactCount: artifacts.length,
+                    totalSize,
+                    artifacts,
+                    loading: false,
+                  }
                 : r
             )
           );
@@ -63,11 +185,13 @@ export default function RepositoryList() {
           console.error('Error fetching artifacts', error);
           setRepositories(prevRepos =>
             prevRepos.map(r =>
-              r.id === repo.id ? { ...r, artifactCount: 0, loading: false } : r
+              r.id === repo.id ? { ...r, artifactCount: 0, totalSize: 0, artifacts: [], loading: false } : r
             )
           );
         }
-      }
+      });
+
+      await Promise.all(artifactPromises);
     } catch (error) {
       console.error('Error fetching repositories', error);
       setLoading(false);
@@ -75,8 +199,45 @@ export default function RepositoryList() {
   }, [session?.accessToken]);
 
   useEffect(() => {
-    fetchRepositories();
+    if (session?.accessToken) {
+      fetchRepositories();
+    }
   }, [session?.accessToken, fetchRepositories]);
+
+  const deleteArtifact = async (repoId: number, artifactId: number) => {
+    const repo = repositories.find(r => r.id === repoId);
+    if (!repo) return;
+
+    try {
+      const octokit = new Octokit({ auth: session?.accessToken });
+      const [owner, repoName] = repo.full_name.split('/');
+
+      await octokit.rest.actions.deleteArtifact({
+        owner,
+        repo: repoName,
+        artifact_id: artifactId,
+      });
+
+      // Update repository state
+      setRepositories(prevRepos =>
+        prevRepos.map(r => {
+          if (r.id === repoId) {
+            const updatedArtifacts = r.artifacts.filter(a => a.id !== artifactId);
+            const totalSize = updatedArtifacts.reduce((sum, artifact) => sum + artifact.size_in_bytes, 0);
+            return {
+              ...r,
+              artifacts: updatedArtifacts,
+              artifactCount: updatedArtifacts.length,
+              totalSize,
+            };
+          }
+          return r;
+        })
+      );
+    } catch (error) {
+      console.error('Error deleting artifact:', error);
+    }
+  };
 
   const deleteArtifacts = async (repoId: number, keepLatest: boolean = false) => {
     const repo = repositories.find(r => r.id === repoId);
@@ -86,13 +247,7 @@ export default function RepositoryList() {
       const octokit = new Octokit({ auth: session?.accessToken });
       const [owner, repoName] = repo.full_name.split('/');
 
-      const artifactsResponse = await octokit.rest.actions.listArtifactsForRepo({
-        owner,
-        repo: repoName,
-        per_page: 100,
-      });
-
-      let artifactsToDelete = artifactsResponse.data.artifacts as Artifact[];
+      let artifactsToDelete = [...repo.artifacts];
 
       if (keepLatest && artifactsToDelete.length > 0) {
         // Sort artifacts by creation date (newest first)
@@ -111,11 +266,21 @@ export default function RepositoryList() {
         });
       }
 
-      // Update the artifact count
+      // Update the repository state
       setRepositories(prevRepos =>
-        prevRepos.map(r =>
-          r.id === repoId ? { ...r, artifactCount: keepLatest ? 1 : 0 } : r
-        )
+        prevRepos.map(r => {
+          if (r.id === repoId) {
+            const remainingArtifacts = keepLatest ? [repo.artifacts[0]] : [];
+            const totalSize = remainingArtifacts.reduce((sum, artifact) => sum + artifact.size_in_bytes, 0);
+            return {
+              ...r,
+              artifacts: remainingArtifacts,
+              artifactCount: remainingArtifacts.length,
+              totalSize,
+            };
+          }
+          return r;
+        })
       );
     } catch (error) {
       console.error('Error deleting artifacts:', error);
@@ -131,93 +296,130 @@ export default function RepositoryList() {
     setDeleting(false);
   };
 
+  const filteredRepositories = hideEmpty
+    ? repositories.filter(repo => repo.artifactCount > 0)
+    : repositories;
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   return (
-    <div>
-      {selectedRepos.length > 0 && (
-        <div className="mb-4 p-4 bg-gray-100 rounded-lg flex justify-between items-center">
-          <span>{selectedRepos.length} repositories selected</span>
+    <div className="max-w-[1280px] mx-auto">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id="hideEmpty"
+            checked={hideEmpty}
+            onCheckedChange={(checked) => setHideEmpty(checked as boolean)}
+          />
+          <label
+            htmlFor="hideEmpty"
+            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+          >
+            Hide repositories without artifacts
+          </label>
+        </div>
+        {selectedRepos.length > 0 && (
           <div className="flex gap-4">
-            <button
+            <Button
+              variant="outline"
               onClick={() => handleDeleteSelected(true)}
               disabled={deleting}
-              className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors disabled:opacity-50"
+              className="border-orange-400 text-orange-400 hover:bg-orange-400/10"
             >
               {deleting ? 'Deleting...' : 'Keep Latest Only'}
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="destructive"
               onClick={() => handleDeleteSelected(false)}
               disabled={deleting}
-              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors disabled:opacity-50"
             >
               {deleting ? 'Deleting...' : 'Delete All'}
-            </button>
+            </Button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-        {repositories.map((repo) => (
-          <div
+        {filteredRepositories.map((repo) => (
+          <Card
             key={repo.id}
-            className={`p-4 border rounded-lg ${
-              selectedRepos.includes(repo.id) ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-            }`}
+            className={selectedRepos.includes(repo.id) ? 'border-primary' : ''}
           >
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <h3 className="font-semibold text-lg">{repo.name}</h3>
-                <p className="text-sm text-gray-600">{repo.full_name}</p>
-              </div>
-              <input
-                type="checkbox"
-                checked={selectedRepos.includes(repo.id)}
-                onChange={(e) => {
-                  setSelectedRepos(prev =>
-                    e.target.checked
-                      ? [...prev, repo.id]
-                      : prev.filter(id => id !== repo.id)
-                  );
-                }}
-                className="ml-2 h-5 w-5"
-              />
-            </div>
-
-            <div className="mt-4 flex items-center justify-between">
-              <span className="text-sm">
-                {repo.loading ? (
-                  <span className="text-gray-500">Loading artifacts...</span>
-                ) : (
-                  <span>{repo.artifactCount} artifacts</span>
-                )}
-              </span>
-              {!repo.loading && repo.artifactCount > 0 && (
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => deleteArtifacts(repo.id, true)}
-                    className="text-sm text-orange-600 hover:text-orange-800"
+            <CardHeader className="pb-2">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <Button
+                    variant="link"
+                    className="h-auto p-0 text-left font-semibold"
+                    onClick={() => setSelectedRepo(repo)}
                   >
-                    Keep latest
-                  </button>
-                  <button
-                    onClick={() => deleteArtifacts(repo.id, false)}
-                    className="text-sm text-red-600 hover:text-red-800"
-                  >
-                    Delete all
-                  </button>
+                    {repo.name}
+                  </Button>
+                  <CardDescription>{repo.full_name}</CardDescription>
                 </div>
-              )}
-            </div>
-          </div>
+                <Checkbox
+                  checked={selectedRepos.includes(repo.id)}
+                  onCheckedChange={(checked) => {
+                    setSelectedRepos(prev =>
+                      checked
+                        ? [...prev, repo.id]
+                        : prev.filter(id => id !== repo.id)
+                    );
+                  }}
+                />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-1">
+                <div className="text-sm">
+                  {repo.loading ? (
+                    <span className="text-muted-foreground">Loading artifacts...</span>
+                  ) : (
+                    <>
+                      <div>{repo.artifactCount} artifacts</div>
+                      <div className="text-muted-foreground">{formatBytes(repo.totalSize)}</div>
+                    </>
+                  )}
+                </div>
+                {!repo.loading && repo.artifactCount > 0 && (
+                  <div className="flex gap-3 mt-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => deleteArtifacts(repo.id, true)}
+                      className="text-orange-400 hover:text-orange-400 hover:bg-orange-400/10"
+                    >
+                      Keep latest
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => deleteArtifacts(repo.id, false)}
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    >
+                      Delete all
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         ))}
       </div>
+
+      {selectedRepo && (
+        <ArtifactModal
+          repository={selectedRepo}
+          onClose={() => setSelectedRepo(null)}
+          onDelete={(artifactId) => deleteArtifact(selectedRepo.id, artifactId)}
+        />
+      )}
     </div>
   );
 }
