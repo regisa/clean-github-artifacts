@@ -12,6 +12,11 @@ interface Repository {
   loading: boolean;
 }
 
+interface Artifact {
+  id: number;
+  created_at: string;
+}
+
 export default function RepositoryList() {
   const { data: session } = useSession();
   const [repositories, setRepositories] = useState<Repository[]>([]);
@@ -70,12 +75,10 @@ export default function RepositoryList() {
   }, [session?.accessToken]);
 
   useEffect(() => {
-    if (session?.accessToken) {
-      fetchRepositories();
-    }
+    fetchRepositories();
   }, [session?.accessToken, fetchRepositories]);
 
-  const deleteArtifacts = async (repoId: number) => {
+  const deleteArtifacts = async (repoId: number, keepLatest: boolean = false) => {
     const repo = repositories.find(r => r.id === repoId);
     if (!repo) return;
 
@@ -89,7 +92,18 @@ export default function RepositoryList() {
         per_page: 100,
       });
 
-      for (const artifact of artifactsResponse.data.artifacts) {
+      let artifactsToDelete = artifactsResponse.data.artifacts as Artifact[];
+
+      if (keepLatest && artifactsToDelete.length > 0) {
+        // Sort artifacts by creation date (newest first)
+        artifactsToDelete.sort((a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+        // Remove the latest artifact from deletion list
+        artifactsToDelete = artifactsToDelete.slice(1);
+      }
+
+      for (const artifact of artifactsToDelete) {
         await octokit.rest.actions.deleteArtifact({
           owner,
           repo: repoName,
@@ -100,7 +114,7 @@ export default function RepositoryList() {
       // Update the artifact count
       setRepositories(prevRepos =>
         prevRepos.map(r =>
-          r.id === repoId ? { ...r, artifactCount: 0 } : r
+          r.id === repoId ? { ...r, artifactCount: keepLatest ? 1 : 0 } : r
         )
       );
     } catch (error) {
@@ -108,10 +122,10 @@ export default function RepositoryList() {
     }
   };
 
-  const handleDeleteSelected = async () => {
+  const handleDeleteSelected = async (keepLatest: boolean = false) => {
     setDeleting(true);
     for (const repoId of selectedRepos) {
-      await deleteArtifacts(repoId);
+      await deleteArtifacts(repoId, keepLatest);
     }
     setSelectedRepos([]);
     setDeleting(false);
@@ -130,13 +144,22 @@ export default function RepositoryList() {
       {selectedRepos.length > 0 && (
         <div className="mb-4 p-4 bg-gray-100 rounded-lg flex justify-between items-center">
           <span>{selectedRepos.length} repositories selected</span>
-          <button
-            onClick={handleDeleteSelected}
-            disabled={deleting}
-            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors disabled:opacity-50"
-          >
-            {deleting ? 'Deleting...' : 'Delete Selected Artifacts'}
-          </button>
+          <div className="flex gap-4">
+            <button
+              onClick={() => handleDeleteSelected(true)}
+              disabled={deleting}
+              className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors disabled:opacity-50"
+            >
+              {deleting ? 'Deleting...' : 'Keep Latest Only'}
+            </button>
+            <button
+              onClick={() => handleDeleteSelected(false)}
+              disabled={deleting}
+              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors disabled:opacity-50"
+            >
+              {deleting ? 'Deleting...' : 'Delete All'}
+            </button>
+          </div>
         </div>
       )}
 
@@ -176,12 +199,20 @@ export default function RepositoryList() {
                 )}
               </span>
               {!repo.loading && repo.artifactCount > 0 && (
-                <button
-                  onClick={() => deleteArtifacts(repo.id)}
-                  className="text-sm text-red-600 hover:text-red-800"
-                >
-                  Delete all
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => deleteArtifacts(repo.id, true)}
+                    className="text-sm text-orange-600 hover:text-orange-800"
+                  >
+                    Keep latest
+                  </button>
+                  <button
+                    onClick={() => deleteArtifacts(repo.id, false)}
+                    className="text-sm text-red-600 hover:text-red-800"
+                  >
+                    Delete all
+                  </button>
+                </div>
               )}
             </div>
           </div>
