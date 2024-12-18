@@ -1,12 +1,18 @@
-"use client";
+'use client';
 
-import { useSession } from "next-auth/react";
-import { useEffect, useState, useCallback } from "react";
-import { Octokit } from "octokit";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Card, CardHeader, CardDescription, CardContent } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Button } from "@/components/ui/button";
+import { useSession } from 'next-auth/react';
+import { useEffect, useState, useCallback } from 'react';
+import { Octokit } from 'octokit';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import { Card, CardHeader, CardDescription, CardContent } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Button } from '@/components/ui/button';
 
 interface Artifact {
   id: number;
@@ -52,9 +58,9 @@ interface LogMessage {
 }
 
 function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
+  if (bytes === 0) return '0 B';
   const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB"];
+  const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
 }
@@ -64,9 +70,11 @@ function ArtifactModal({ repository, onClose, onDelete }: ModalProps) {
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
 
   useEffect(() => {
-    setArtifacts([...repository.artifacts].sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    ));
+    setArtifacts(
+      [...repository.artifacts].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )
+    );
   }, [repository.artifacts]);
 
   const handleDelete = async (artifactId: number) => {
@@ -74,9 +82,9 @@ function ArtifactModal({ repository, onClose, onDelete }: ModalProps) {
     try {
       await onDelete(artifactId);
       // Remove the artifact from the local state immediately after successful deletion
-      setArtifacts(prev => prev.filter(a => a.id !== artifactId));
+      setArtifacts((prev) => prev.filter((a) => a.id !== artifactId));
     } catch (error) {
-      console.error("Error deleting artifact:", error);
+      console.error('Error deleting artifact:', error);
     }
     setDeletingIds((prev) => prev.filter((id) => id !== artifactId));
   };
@@ -87,7 +95,8 @@ function ArtifactModal({ repository, onClose, onDelete }: ModalProps) {
         <DialogHeader>
           <DialogTitle>{repository.name} Artifacts</DialogTitle>
           <DialogDescription>
-            Manage artifacts for {repository.full_name}. Total size: {formatBytes(repository.totalSize)}
+            Manage artifacts for {repository.full_name}. Total size:{' '}
+            {formatBytes(repository.totalSize)}
           </DialogDescription>
         </DialogHeader>
         <div className="overflow-y-auto max-h-[60vh]">
@@ -101,7 +110,7 @@ function ArtifactModal({ repository, onClose, onDelete }: ModalProps) {
                     <div>
                       <h3 className="font-medium">{artifact.name}</h3>
                       <p className="text-sm text-muted-foreground">
-                        Size: {formatBytes(artifact.size_in_bytes)} • Created:{" "}
+                        Size: {formatBytes(artifact.size_in_bytes)} • Created:{' '}
                         {new Date(artifact.created_at).toLocaleDateString()}
                       </p>
                     </div>
@@ -109,8 +118,9 @@ function ArtifactModal({ repository, onClose, onDelete }: ModalProps) {
                       variant="destructive"
                       size="sm"
                       onClick={() => handleDelete(artifact.id)}
-                      disabled={deletingIds.includes(artifact.id)}>
-                      {deletingIds.includes(artifact.id) ? "Deleting..." : "Delete"}
+                      disabled={deletingIds.includes(artifact.id)}
+                    >
+                      {deletingIds.includes(artifact.id) ? 'Deleting...' : 'Delete'}
                     </Button>
                   </CardContent>
                 </Card>
@@ -139,24 +149,26 @@ export default function RepositoryList() {
   const [logs, setLogs] = useState<LogMessage[]>([]);
 
   const addLog = useCallback((text: string) => {
-    setLogs((prev) => [
-      ...prev,
-      {
-        id: `${Date.now()}-${prev.length}`,
-        text,
-        timestamp: new Date(),
-      },
-    ].sort((a, b) => b.id.localeCompare(a.id)));
+    setLogs((prev) =>
+      [
+        ...prev,
+        {
+          id: `${Date.now()}-${prev.length}`,
+          text,
+          timestamp: new Date(),
+        },
+      ].sort((a, b) => b.id.localeCompare(a.id))
+    );
   }, []);
 
   const fetchRepositories = useCallback(async () => {
     try {
       setLogs([]);
-      addLog("Fetching repositories...");
+      addLog('Fetching repositories...');
       const octokit = new Octokit({ auth: session?.accessToken });
       const response = await octokit.rest.repos.listForAuthenticatedUser({
         per_page: 100,
-        sort: "updated",
+        sort: 'updated',
       });
 
       addLog(`Found ${response.data.length} repositories`);
@@ -179,7 +191,7 @@ export default function RepositoryList() {
         try {
           addLog(`Fetching artifacts for ${repo.name}...`);
           const artifactsResponse = await octokit.rest.actions.listArtifactsForRepo({
-            owner: repo.full_name.split("/")[0],
+            owner: repo.full_name.split('/')[0],
             repo: repo.name,
             per_page: 100,
           });
@@ -211,20 +223,22 @@ export default function RepositoryList() {
           );
         } catch (error) {
           addLog(`Error fetching artifacts for ${repo.name}`);
-          console.error("Error fetching artifacts", error);
+          console.error('Error fetching artifacts', error);
           setRepositories((prevRepos) =>
             prevRepos.map((r) =>
-              r.id === repo.id ? { ...r, artifactCount: 0, totalSize: 0, artifacts: [], loading: false } : r
+              r.id === repo.id
+                ? { ...r, artifactCount: 0, totalSize: 0, artifacts: [], loading: false }
+                : r
             )
           );
         }
       });
 
       await Promise.all(artifactPromises);
-      addLog("Finished fetching all artifacts");
+      addLog('Finished fetching all artifacts');
     } catch (error) {
-      addLog("Error fetching repositories");
-      console.error("Error fetching repositories", error);
+      addLog('Error fetching repositories');
+      console.error('Error fetching repositories', error);
       setLoading(false);
     }
   }, [session?.accessToken, addLog]);
@@ -239,13 +253,13 @@ export default function RepositoryList() {
     const repo = repositories.find((r) => r.id === repoId);
     if (!repo) return;
 
-    const artifact = repo.artifacts.find(a => a.id === artifactId);
+    const artifact = repo.artifacts.find((a) => a.id === artifactId);
     if (!artifact) return;
 
     try {
       addLog(`Deleting artifact "${artifact.name}" from ${repo.name}...`);
       const octokit = new Octokit({ auth: session?.accessToken });
-      const [owner, repoName] = repo.full_name.split("/");
+      const [owner, repoName] = repo.full_name.split('/');
 
       await octokit.rest.actions.deleteArtifact({
         owner,
@@ -260,7 +274,10 @@ export default function RepositoryList() {
         prevRepos.map((r) => {
           if (r.id === repoId) {
             const updatedArtifacts = r.artifacts.filter((a) => a.id !== artifactId);
-            const totalSize = updatedArtifacts.reduce((sum, artifact) => sum + artifact.size_in_bytes, 0);
+            const totalSize = updatedArtifacts.reduce(
+              (sum, artifact) => sum + artifact.size_in_bytes,
+              0
+            );
             return {
               ...r,
               artifacts: updatedArtifacts,
@@ -273,7 +290,7 @@ export default function RepositoryList() {
       );
     } catch (error) {
       addLog(`Error deleting artifact "${artifact.name}" from ${repo.name}`);
-      console.error("Error deleting artifact:", error);
+      console.error('Error deleting artifact:', error);
     }
   };
 
@@ -283,13 +300,15 @@ export default function RepositoryList() {
 
     try {
       const octokit = new Octokit({ auth: session?.accessToken });
-      const [owner, repoName] = repo.full_name.split("/");
+      const [owner, repoName] = repo.full_name.split('/');
 
       let artifactsToDelete = [...repo.artifacts];
 
       if (keepLatest && artifactsToDelete.length > 0) {
         // Sort artifacts by creation date (newest first)
-        artifactsToDelete.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        artifactsToDelete.sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
         // Remove the latest artifact from deletion list
         artifactsToDelete = artifactsToDelete.slice(1);
       }
@@ -306,7 +325,7 @@ export default function RepositoryList() {
           addLog(`Successfully deleted artifact "${artifact.name}" from ${repo.name}`);
         } catch (error) {
           addLog(`Error deleting artifact "${artifact.name}" from ${repo.name}`);
-          console.error("Error deleting artifact:", error);
+          console.error('Error deleting artifact:', error);
         }
       }
 
@@ -315,7 +334,10 @@ export default function RepositoryList() {
         prevRepos.map((r) => {
           if (r.id === repoId) {
             const remainingArtifacts = keepLatest ? [repo.artifacts[0]] : [];
-            const totalSize = remainingArtifacts.reduce((sum, artifact) => sum + artifact.size_in_bytes, 0);
+            const totalSize = remainingArtifacts.reduce(
+              (sum, artifact) => sum + artifact.size_in_bytes,
+              0
+            );
             return {
               ...r,
               artifacts: remainingArtifacts,
@@ -330,7 +352,7 @@ export default function RepositoryList() {
       addLog(`Finished processing ${repo.name}`);
     } catch (error) {
       addLog(`Error processing ${repo.name}`);
-      console.error("Error deleting artifacts:", error);
+      console.error('Error deleting artifacts:', error);
     }
   };
 
@@ -343,7 +365,9 @@ export default function RepositoryList() {
     setDeleting(false);
   };
 
-  const filteredRepositories = hideEmpty ? repositories.filter((repo) => repo.artifactCount > 0) : repositories;
+  const filteredRepositories = hideEmpty
+    ? repositories.filter((repo) => repo.artifactCount > 0)
+    : repositories;
 
   if (loading) {
     return (
@@ -381,7 +405,8 @@ export default function RepositoryList() {
               />
               <label
                 htmlFor="hideEmpty"
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
                 Hide repositories without artifacts
               </label>
             </div>
@@ -391,11 +416,16 @@ export default function RepositoryList() {
                   variant="outline"
                   onClick={() => handleDeleteSelected(true)}
                   disabled={deleting}
-                  className="border-orange-400 text-orange-400 hover:bg-orange-400/10">
-                  {deleting ? "Deleting..." : "Keep Latest Only"}
+                  className="border-orange-400 text-orange-400 hover:bg-orange-400/10"
+                >
+                  {deleting ? 'Deleting...' : 'Keep Latest Only'}
                 </Button>
-                <Button variant="destructive" onClick={() => handleDeleteSelected(false)} disabled={deleting}>
-                  {deleting ? "Deleting..." : "Delete All"}
+                <Button
+                  variant="destructive"
+                  onClick={() => handleDeleteSelected(false)}
+                  disabled={deleting}
+                >
+                  {deleting ? 'Deleting...' : 'Delete All'}
                 </Button>
               </div>
             )}
@@ -403,14 +433,18 @@ export default function RepositoryList() {
 
           <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
             {filteredRepositories.map((repo) => (
-              <Card key={repo.id} className={selectedRepos.includes(repo.id) ? "border-primary" : ""}>
+              <Card
+                key={repo.id}
+                className={selectedRepos.includes(repo.id) ? 'border-primary' : ''}
+              >
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <Button
                         variant="link"
                         className="h-auto p-0 text-left font-semibold"
-                        onClick={() => setSelectedRepo(repo)}>
+                        onClick={() => setSelectedRepo(repo)}
+                      >
                         {repo.name}
                       </Button>
                       <CardDescription>{repo.full_name}</CardDescription>
@@ -443,14 +477,16 @@ export default function RepositoryList() {
                           variant="ghost"
                           size="sm"
                           onClick={() => deleteArtifacts(repo.id, true)}
-                          className="text-orange-400 hover:text-orange-400 hover:bg-orange-400/10">
+                          className="text-orange-400 hover:text-orange-400 hover:bg-orange-400/10"
+                        >
                           Keep latest
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => deleteArtifacts(repo.id, false)}
-                          className="text-destructive hover:text-destructive hover:bg-destructive/10">
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        >
                           Delete all
                         </Button>
                       </div>

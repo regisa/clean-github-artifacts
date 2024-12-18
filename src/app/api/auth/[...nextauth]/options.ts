@@ -1,5 +1,5 @@
-import type { NextAuthOptions } from "next-auth";
-import GithubProvider from "next-auth/providers/github";
+import type { NextAuthOptions } from 'next-auth';
+import GithubProvider from 'next-auth/providers/github';
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -8,7 +8,7 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.GITHUB_SECRET!,
       authorization: {
         params: {
-          scope: "repo read:user user:email read:org delete:packages",
+          scope: 'repo read:user user:email read:org delete:packages',
         },
       },
     }),

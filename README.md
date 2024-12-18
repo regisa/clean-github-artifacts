@@ -24,6 +24,7 @@ A web application to manage and clean up GitHub Actions artifacts across your re
    GITHUB_SECRET=your-github-oauth-app-secret
    ```
 4. Create a GitHub OAuth App:
+
    - Go to GitHub Settings > Developer Settings > OAuth Apps
    - Create a new OAuth App
    - Set the homepage URL to `http://localhost:3000`
