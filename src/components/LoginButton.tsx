@@ -9,7 +9,7 @@ export default function LoginButton() {
     return (
       <button
         onClick={() => signOut()}
-        className="px-3 py-1.5 bg-[#21262d] border border-[#da3633] text-[#da3633] rounded-md hover:bg-[#30363d] transition-colors text-sm font-semibold"
+        className="px-3 py-1.5 bg-destructive/10 text-destructive hover:bg-destructive/20 rounded-md transition-colors text-sm font-semibold"
       >
         Sign Out
       </button>
@@ -19,7 +19,7 @@ export default function LoginButton() {
   return (
     <button
       onClick={() => signIn("github")}
-      className="px-3 py-1.5 bg-[#238636] text-[#ffffff] rounded-md hover:bg-[#2ea043] transition-colors text-sm font-semibold flex items-center gap-2"
+      className="px-3 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-sm font-semibold flex items-center gap-2"
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
