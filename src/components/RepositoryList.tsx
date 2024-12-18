@@ -123,6 +123,11 @@ function ArtifactModal({ repository, onClose, onDelete }: ModalProps) {
   );
 }
 
+// Add this helper function for formatting timestamps with milliseconds
+function formatTimestamp(date: Date): string {
+  return date.toLocaleTimeString() + '.' + date.getMilliseconds().toString().padStart(3, '0');
+}
+
 export default function RepositoryList() {
   const { data: session } = useSession();
   const [repositories, setRepositories] = useState<Repository[]>([]);
@@ -346,12 +351,15 @@ export default function RepositoryList() {
         <div className="flex-1 flex justify-center items-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
         </div>
-        <div className="w-80 border rounded-lg bg-muted/5 p-4 overflow-auto">
+        <div className="w-80 border rounded-lg bg-card p-4 overflow-hidden h-[400px] flex flex-col">
           <h3 className="font-semibold mb-2">Progress Log</h3>
-          <div className="space-y-2">
+          <div className="space-y-1 overflow-y-auto flex-1 font-mono text-xs">
             {logs.map((log) => (
-              <div key={log.id} className="text-sm">
-                <span className="text-muted-foreground">{log.timestamp.toLocaleTimeString()} -</span> {log.text}
+              <div key={log.id} className="flex gap-2">
+                <span className="text-muted-foreground whitespace-nowrap">
+                  {formatTimestamp(log.timestamp)}
+                </span>
+                <span className="break-all">{log.text}</span>
               </div>
             ))}
           </div>
@@ -454,13 +462,13 @@ export default function RepositoryList() {
           </div>
         </div>
 
-        <div className="w-80 border rounded-lg bg-card p-4 overflow-hidden sticky top-4 flex flex-col h-[calc(100vh-2rem)]">
+        <div className="w-80 border rounded-lg bg-card p-4 overflow-hidden sticky top-4 flex flex-col h-[400px]">
           <h3 className="font-semibold mb-2">Progress Log</h3>
           <div className="space-y-1 overflow-y-auto flex-1 font-mono text-xs">
             {logs.map((log) => (
               <div key={log.id} className="flex gap-2">
                 <span className="text-muted-foreground whitespace-nowrap">
-                  {log.timestamp.toLocaleTimeString()}
+                  {formatTimestamp(log.timestamp)}
                 </span>
                 <span className="break-all">{log.text}</span>
               </div>
