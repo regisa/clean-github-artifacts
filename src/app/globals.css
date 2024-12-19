@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -29,4 +31,61 @@
 
 body {
   @apply bg-background text-foreground antialiased;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.feed-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.feed-table tr {
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.feed-table td,
+.feed-table th {
+  padding: 1rem;
+  text-align: left;
+}
+
+.feed-table th {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  text-transform: uppercase;
+}
+
+.feed-link {
+  color: hsl(var(--foreground));
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.feed-link:hover {
+  text-decoration: none;
+}
+
+.feed-badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 4px;
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+}
+
+button[class*="ghost"] {
+  font-family: monospace;
+  font-size: 0.875rem;
+  font-weight: 500;
+  height: auto;
+  padding: 0.25rem 0.5rem;
+}
+
+button[class*="ghost"]:hover {
+  background: none;
+  color: hsl(var(--primary));
 }

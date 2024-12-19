@@ -10,9 +10,9 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { Card, CardHeader, CardDescription, CardContent } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { PlusIcon } from 'lucide-react';
 
 interface Artifact {
   id: number;
@@ -138,7 +138,11 @@ function formatTimestamp(date: Date): string {
   return date.toLocaleTimeString() + '.' + date.getMilliseconds().toString().padStart(3, '0');
 }
 
-export default function RepositoryList() {
+interface RepositoryListProps {
+  showConsole: boolean;
+}
+
+export default function RepositoryList({ showConsole }: RepositoryListProps) {
   const { data: session } = useSession();
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [loading, setLoading] = useState(true);
@@ -236,6 +240,7 @@ export default function RepositoryList() {
 
       await Promise.all(artifactPromises);
       addLog('Finished fetching all artifacts');
+      setHideEmpty(true);
     } catch (error) {
       addLog('Error fetching repositories');
       console.error('Error fetching repositories', error);
@@ -371,136 +376,18 @@ export default function RepositoryList() {
 
   if (loading) {
     return (
-      <div className="flex min-h-[500px] gap-8">
-        <div className="flex-1 flex justify-center items-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-        </div>
-        <div className="w-80 border rounded-lg bg-card p-4 overflow-hidden h-[400px] flex flex-col">
-          <h3 className="font-semibold mb-2">Progress Log</h3>
-          <div className="space-y-1 overflow-y-auto flex-1 font-mono text-xs">
-            {logs.map((log) => (
-              <div key={log.id} className="flex gap-2">
-                <span className="text-muted-foreground whitespace-nowrap">
-                  {formatTimestamp(log.timestamp)}
-                </span>
-                <span className="break-all">{log.text}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+      <div className="flex min-h-[200px] items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-[1280px] mx-auto">
-      <div className="flex gap-8">
-        <div className="flex-1">
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="hideEmpty"
-                checked={hideEmpty}
-                onCheckedChange={(checked) => setHideEmpty(checked as boolean)}
-              />
-              <label
-                htmlFor="hideEmpty"
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                Hide repositories without artifacts
-              </label>
-            </div>
-            {selectedRepos.length > 0 && (
-              <div className="flex gap-4">
-                <Button
-                  variant="outline"
-                  onClick={() => handleDeleteSelected(true)}
-                  disabled={deleting}
-                  className="border-orange-400 text-orange-400 hover:bg-orange-400/10"
-                >
-                  {deleting ? 'Deleting...' : 'Keep Latest Only'}
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={() => handleDeleteSelected(false)}
-                  disabled={deleting}
-                >
-                  {deleting ? 'Deleting...' : 'Delete All'}
-                </Button>
-              </div>
-            )}
-          </div>
-
-          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-            {filteredRepositories.map((repo) => (
-              <Card
-                key={repo.id}
-                className={selectedRepos.includes(repo.id) ? 'border-primary' : ''}
-              >
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <Button
-                        variant="link"
-                        className="h-auto p-0 text-left font-semibold"
-                        onClick={() => setSelectedRepo(repo)}
-                      >
-                        {repo.name}
-                      </Button>
-                      <CardDescription>{repo.full_name}</CardDescription>
-                    </div>
-                    <Checkbox
-                      checked={selectedRepos.includes(repo.id)}
-                      onCheckedChange={(checked) => {
-                        setSelectedRepos((prev) =>
-                          checked ? [...prev, repo.id] : prev.filter((id) => id !== repo.id)
-                        );
-                      }}
-                    />
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-1">
-                    <div className="text-sm">
-                      {repo.loading ? (
-                        <span className="text-muted-foreground">Loading artifacts...</span>
-                      ) : (
-                        <>
-                          <div>{repo.artifactCount} artifacts</div>
-                          <div className="text-muted-foreground">{formatBytes(repo.totalSize)}</div>
-                        </>
-                      )}
-                    </div>
-                    {!repo.loading && repo.artifactCount > 0 && (
-                      <div className="flex gap-3 mt-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => deleteArtifacts(repo.id, true)}
-                          className="text-orange-400 hover:text-orange-400 hover:bg-orange-400/10"
-                        >
-                          Keep latest
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => deleteArtifacts(repo.id, false)}
-                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                        >
-                          Delete all
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-
-        <div className="w-80 border rounded-lg bg-card p-4 overflow-hidden sticky top-4 flex flex-col h-[400px]">
+    <div className="space-y-4">
+      {showConsole && (
+        <div className="border rounded-lg bg-card p-4 overflow-hidden">
           <h3 className="font-semibold mb-2">Progress Log</h3>
-          <div className="space-y-1 overflow-y-auto flex-1 font-mono text-xs">
+          <div className="space-y-1 overflow-y-auto max-h-[200px] font-mono text-xs">
             {logs.map((log) => (
               <div key={log.id} className="flex gap-2">
                 <span className="text-muted-foreground whitespace-nowrap">
@@ -511,6 +398,78 @@ export default function RepositoryList() {
             ))}
           </div>
         </div>
+      )}
+
+      <div>
+        <div className="mb-4 flex items-center justify-between">
+          {selectedRepos.length > 0 && (
+            <div className="flex gap-4">
+              <Button
+                variant="outline"
+                onClick={() => handleDeleteSelected(true)}
+                disabled={deleting}
+                className="border-orange-400 text-orange-400 hover:bg-orange-400/10"
+              >
+                {deleting ? 'Deleting...' : 'Keep Latest Only'}
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => handleDeleteSelected(false)}
+                disabled={deleting}
+              >
+                {deleting ? 'Deleting...' : 'Delete All'}
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <table className="feed-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Name</th>
+              <th>Size</th>
+              <th>Type</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredRepositories.map((repo) => (
+              <tr key={repo.id}>
+                <td className="whitespace-nowrap">
+                  {new Date(repo.artifacts[0]?.created_at || Date.now()).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit'
+                  })}
+                </td>
+                <td>
+                  <Button
+                    variant="link"
+                    className="h-auto p-0 text-left font-medium"
+                    onClick={() => setSelectedRepo(repo)}
+                  >
+                    {repo.name}
+                  </Button>
+                </td>
+                <td className="whitespace-nowrap text-muted-foreground">
+                  {formatBytes(repo.totalSize)}
+                </td>
+                <td>
+                  <span className="feed-badge">
+                    {repo.artifactCount > 0 ? 'ARTIFACTS' : 'EMPTY'}
+                  </span>
+                </td>
+                <td className="text-right">
+                  <Button variant="ghost" size="icon" onClick={() => setSelectedRepo(repo)}>
+                    <span className="sr-only">Open</span>
+                    <PlusIcon className="h-4 w-4" />
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       {selectedRepo && (
